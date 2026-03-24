@@ -170,6 +170,91 @@ https://github.com/ARM-software/CMSIS-DAP
 | 專業除錯 | J-Link |
 | 大量生產 | 專用燒錄器 |
 
+## 結論
+
+| 適合對象 | 建議 |
+|----------|------|
+| 學習/開發 | CMSIS-DAP / DAPLink |
+| STM32 開發 | ST-Link |
+| 專業除錯 | J-Link |
+| 大量生產 | 專用燒錄器 |
+
+---
+
+## pyOCD + VS Code 開發環境
+
+### 簡介
+
+pyOCD 是 ARM 開源的除錯工具，支援 CMSIS-DAP，可搭配 VS Code 使用。
+
+### 安裝
+
+```bash
+# 安裝 pyOCD
+pip install pyocd
+
+# 安裝 Cortex-Debug 擴充 (VS Code)
+# 搜尋 "Cortex-Debug" 並安裝
+```
+
+### VS Code 設定
+
+#### launch.json
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug with PyOCD",
+            "type": "cortex-debug",
+            "request": "launch",
+            "runToEntryPoint": "main",
+            "executable": "${workspaceFolder}/build/firmware.elf",
+            "device": "M487",
+            "serialPort": "COM3",
+            "svdFile": "${workspaceFolder}/M487.svd",
+            "pyocdBinary": "pyocd-gdbserver"
+        }
+    ]
+}
+```
+
+### 功能清單
+
+- 逐步除錯 (Step/Step Over/Step Out)
+- 監看變數 (Watch Variables)
+- 暫存器檢視 (Register View)
+- 中斷點 (Breakpoints)
+- 記憶體檢視 (Memory View)
+- 呼叫堆疊 (Call Stack)
+
+### 需要的檔案
+
+| 檔案 | 用途 |
+|------|------|
+| `.elf` / `.axf` | 編譯後的執行檔 |
+| `.svd` | 週邊暫存器定義 |
+
+### 常用指令
+
+```bash
+# 燒錄
+pyocd flash firmware.bin
+
+# 燒錄並執行
+pyocd load firmware.bin -f
+
+# 除錯伺服器
+pyocd gdbserver
+
+# 列出支援的晶片
+pyocd list --targets
+
+# 抹除晶片
+pyocd erase --chip
+```
+
 ---
 
 ## 參考資源
@@ -179,6 +264,7 @@ https://github.com/ARM-software/CMSIS-DAP
 | 官方網站 | https://arm-software.github.io/CMSIS-DAP/latest/ |
 | GitHub | https://github.com/ARM-software/CMSIS-DAP |
 | pyOCD | https://pyocd.io/ |
+| Cortex-Debug | https://marketplace.visualstudio.com/items?itemName=marus25.cortex-debug |
 
 ---
 

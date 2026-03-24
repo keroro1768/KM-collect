@@ -272,6 +272,17 @@ void EnableReadoutProtection(void)
 | UART ISP | 慢 | 序列埠 | 低 |
 | ICP | 快 | Nu-Link | 高 |
 | USB ISP | 中 | USB | 中 |
+| **pyOCD** | 快 | CMSIS-DAP | 高 |
+
+### 燒錄器比較
+
+| 燒錄器 | 類型 | 支援晶片 | 價格 |
+|--------|------|----------|------|
+| **J-Link** | 商業 | 全面 | 高 |
+| **ST-Link** | 官方 | STM32 | 中 |
+| **pyOCD** | 開源 | Cortex-M | 免費 |
+| **CMSIS-DAP** | 開源 | Cortex-M | 免費/便宜 |
+| **Nu-Link** | 官方 | Nuvoton | 中 |
 
 | 保護機制 | 等級 | 可逆 |
 |----------|------|------|

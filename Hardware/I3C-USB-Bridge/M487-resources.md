@@ -45,12 +45,12 @@
 
 ### USB 範例
 
-| 範例 | 說明 | 連結 |
-|------|------|------|
-| USB Device HID | USB 轉 SPI 橋接 | [NuForum](https://forum.nuvoton.com/en/mcu-nudeveloper-ecosystem/bsp-example-code/11197) |
+| 範例                   | 說明                 | 連結                                                                                       |
+| -------------------- | ------------------ | ---------------------------------------------------------------------------------------- |
+| USB Device HID       | USB 轉 SPI 橋接       | [NuForum](https://forum.nuvoton.com/en/mcu-nudeveloper-ecosystem/bsp-example-code/11197) |
 | USB Composite Device | 複合裝置 (UAC+HID+MSC) | [NuForum](https://forum.nuvoton.com/en/mcu-nudeveloper-ecosystem/bsp-example-code/10972) |
-| USB CDC | 虛擬序列埠 | SDK 內建 |
-| USB Mass Storage | 大容量儲存 | SDK 內建 |
+| USB CDC              | 虛擬序列埠              | SDK 內建                                                                                   |
+| USB Mass Storage     | 大容量儲存              | SDK 內建                                                                                   |
 
 ### I2C 範例
 
@@ -246,15 +246,24 @@ void USB_OTG_Init(void)
 
 ## I3C 相容性
 
-M480/M487 系列雖然主要標示為 I2C，但硬體架構支援 I3C 相關功能：
+**⚠️ 重要修正（2026-03-26）：**
 
-| 功能 | I2C | I3C |
+M480/M487 系列**沒有原生 I3C 硬體控制器**。根據 BSP register header 確認：
+
+- ✅ 有 `i2c_reg.h` — 標準 I2C（SMBus/PMBus 相容）
+- ✅ 有 `ui2c_reg.h` — USCI 介面（可設為 I2C 模式）
+- ❌ **沒有 `i3c_reg.h`** — 沒有 I3C 控制器
+
+| 功能 | I2C | I3C（需軟體模擬） |
 |------|-----|-----|
-| 標準模式 | ✅ | ✅ |
-| 快速模式 | ✅ | ✅ |
-| 高速模式 | ✅ | - |
-| In-band interrupt | - | ✅ |
-| CCC commands | - | 部分支援 |
+| 標準模式 | ✅ 原生 | ⚠️ 軟體模擬 |
+| 快速模式 | ✅ 原生 | ⚠️ 軟體模擬 |
+| 高速模式 | ✅ 原生 | ❌ 不支援 |
+| In-band interrupt | ❌ | ⚠️ 軟體模擬 |
+| CCC commands | ❌ | ⚠️ 軟體模擬 |
+| 動態位址分配 | ❌ | ⚠️ 軟體模擬 |
+
+M487 只能透過 **USB HID 橋接外部 I3C 控制晶片**（如 STM32H5、I3C Hub）來實現 I3C 功能，不能作為 I3C Host。
 
 ---
 

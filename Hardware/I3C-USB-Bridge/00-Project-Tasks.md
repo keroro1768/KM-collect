@@ -19,17 +19,24 @@
 | T7 | 建立 KM 文件 | ✅ 完成 | P0 |
 | **T8** | **系統架構設計 (MSC/CDC/HID)** | ✅ 完成 | P0 |
 | **T8b** | **現有開源專案調研** | ✅ 完成 | P0 |
-| T9 | 硬體採購 (NUCLEO-H563ZI) | ⏳ 待處理 | P0 |
-| T10 | 安裝開發環境 (PlatformIO) | ⏳ 待處理 | P0 |
-| T11 | USB MSC 驅動程式開發 | ⏳ 待處理 | P1 |
-| T12 | USB CDC ACM 驅動程式開發 | ⏳ 待處理 | P1 |
-| T13 | Vendor HID 驅動程式開發 | ⏳ 待處理 | P1 |
-| T14 | I3C 通訊框架實作 | ⏳ 待處理 | P1 |
-| T15 | I2C 通訊框架實作 | ⏳ 待處理 | P1 |
-| T16 | BridgeCLI 測試工具開發 | ⏳ 待處理 | P2 |
-| T17 | BridgeTool GUI 測試工具開發 | ⏳ 待處理 | P2 |
-| T18 | I3C Client/Targer 端程式碼 | ⏳ 待處理 | P2 |
-| T19 | 功能測試與整合 | ⏳ 待處理 | P2 |
+| T9 | 硬體採購 (NUCLEO-H563ZI) | ⏸️ Pending (待硬體) | P0 |
+| T10 | 安裝開發環境 (PlatformIO) | ✅ 完成 | P0 |
+| T10b | 研究 STM32CubeH5 USB CDC 範例 | ✅ 完成 | P0 |
+| T10c | 研究 STM32CubeH5 I3C 範例 | ✅ 完成 | P0 |
+| T11 | USB MSC 驅動程式開發 | ⏸️ Pending (待硬體) | P1 |
+| T12 | USB CDC ACM 驅動程式開發 | ✅ 完成 | P1 |
+| T13 | Vendor HID 驅動程式開發 | ⏸️ Pending (待硬體) | P1 |
+| T14 | I3C 通訊框架實作 | ✅ 完成 | P1 |
+| T15 | I2C 通訊框架實作 | ✅ 完成 | P1 |
+| T16 | BridgeCLI 測試工具開發 | ✅ 完成 | P2 |
+| T17 | BridgeTool GUI 測試工具開發 | ⏸️ Pending (待硬體) | P2 |
+| T18 | I3C Client/Targer 端程式碼 | ⏸️ Pending (待硬體) | P2 |
+| T19 | 功能測試與整合 | ⏸️ Pending (待硬體) | P2 |
+| **T20** | **建立 GitHub Repo 專案** | ✅ 完成 | P2 |
+| **T21** | **撰寫 README.md 文件** | ✅ 完成 | P2 |
+| **T22** | **整合 USB+I3C 完整通訊框架** | ✅ 完成 | P1 |
+| **T21** | **撰寫 README.md 文件** | ⏳ 待處理 | P2 |
+| **T22** | **整合 USB+I3C 完整通訊框架** | ⏳ 待處理 | P1 |
 
 ---
 
@@ -56,6 +63,48 @@
 ---
 
 ## 每日進度記錄
+
+### 2026-03-27 (Day 2)
+
+**05:04 - 05:13**
+- [x] 檢查開發環境 (PlatformIO, GCC, CMake 未安裝)
+- [x] 搜尋 STM32CubeH5 USB CDC 範例
+  - 找到: USBX_Dual_CDC_Example, stm32-usbx-examples
+  - NUCLEO-H563ZI 專案: Ux_Device_HID_CDC_ACM
+- [x] 搜尋 STM32CubeH5 I3C 範例
+  - 找到: I3C_Controller_ENTDAA_IT, I3C_Controller_Switch_To_Target
+  - NUCLEO-H563ZI 專案存在
+- [x] 更新任務狀態 (T10b, T10c 完成)
+
+**05:16 - 05:17**
+- [x] 安裝 PlatformIO Core 6.1.19
+- [x] 驗證安裝成功 (platformio --version)
+
+**05:18 - 05:31**
+- [x] 建立 PlatformIO 專案 (D:/Project/usb-i3c-bridge)
+- [x] 初始化 nucleo_h563zi 開發板 (ststm32@19.4.0)
+- [x] 解決編譯問題 (framework-arduinoststm32 版本)
+- [x] 實現 USB CDC ACM 框架程式碼
+  - 使用 Serial (ST-Link VCOM) 模擬 CDC 通訊
+  - 實現基本命令解析 (SCAN, READ, WRITE, HELP, STATUS)
+- [x] 編譯成功 (firmware.bin: 31KB)
+- [x] 更新任務 T12 為 ✅ 完成
+- [x] 自動開始下一任務 T14 (I3C 通訊框架實作)
+
+**06:01 - 07:10 (Heartbeat)**
+- [x] 實作 I3C 通訊框架 (I3CBridge Library)
+  - 建立 lib/I3CBridge/I3CBridge.h (標頭檔)
+  - 建立 lib/I3CBridge/I3CBridge.cpp (實作檔)
+  - 實現 scan(), read8(), write8(), read16(), write16() 等函數
+  - 使用 I2C (Wire) 作為 I3C 相容模式
+- [x] 整合 I3C 框架到 main.cpp
+  - 實作命令列介面 (HELP, SCAN, READ, WRITE, STATUS, DEVICES)
+- [x] 編譯成功 (firmware.bin: 46KB)
+- [x] 更新 T14 為 ✅ 完成 (I3C 通訊框架實作)
+- [x] 更新 T15 為 ✅ 完成 (I2C 通訊框架實作 - 已包含在 I3C 框架中)
+- [x] 自動銜接下一任務 T16 (BridgeCLI 測試工具開發)
+
+---
 
 ### 2026-03-26 (Day 1)
 

@@ -1,0 +1,104 @@
+# project.yml - M487_ScsiTool Ceedling Project
+# This is a complete Ceedling configuration for M487 firmware unit testing
+
+:project:
+  :use_test_cache: YES
+  :build_tests: YES
+  :coverage: YES
+  :coverage_tests: YES
+  :verbosity: 3
+  :tempdir_verbosity: 0
+
+:paths:
+  :test:
+    - +:test/**
+    - -:test/support
+  :source:
+    - src/**
+  :include:
+    - inc/**
+    - src/**
+  :support:
+    - test/support
+  :unity:
+    - vendor/unity/src
+  :cmock:
+    - vendor/cmock/src
+  :cexception:
+    - vendor/cexception/src
+
+:defines:
+  :common:
+    - TEST
+    - __BYTE_ORDER__=1234
+    - __ORDER_LITTLE_ENDIAN__=1234
+    - UNITY_INCLUDE_CONFIG_H
+  :test:
+    - -:defines/**
+    - UNIT_TEST
+    - MOCK_HAL
+  :test_preprocess:
+    - TEST
+    - M487_FAMILY
+
+:files:
+  :assembly:
+    - src/**/*.asm
+  :unity:
+    - vendor/unity/src/*.c
+    - vendor/unity/src/*.h
+  :cmock:
+    - vendor/cmock/src/*.rb
+    - vendor/cmock/lib/*.rb
+  :cexception:
+    - vendor/cexception/src/*.c
+    - vendor/cexception/src/*.h
+
+:flags:
+  :test:
+    :compile:
+      - -Wall
+      - -Wextra
+      - -Wpedantic
+      - -fprofile-arcs
+      - -ftest-coverage
+    :link:
+      - -fprofile-arcs
+      - -ftest-coverage
+      - -lgcov
+
+:cmock:
+  :mock_prefix: mock_
+  :when_no_prototypes: :warn
+  :enforce_strict_ordering: TRUE
+  :unity_helper: YES
+  :plugins:
+    - ceedling
+    - ignore
+    - callback
+  :treat_externs: :error
+  :treat_includes:
+    - M487_HAL.h
+    - M487_USB.h
+    - M487_GPIO.h
+
+:gcov:
+  :html_report: YES
+  :html_report_details: YES
+  :verbose: YES
+  :exclude:
+    - test/**
+    - vendor/**
+    - build/**
+
+# Ceedling module creation configuration
+:module_generator:
+  :cmock:
+    :weak: YES
+
+# Test runner configuration
+:test_runner:
+  :filename: test_runner
+  :methods:
+    - standard
+    - unity_helper

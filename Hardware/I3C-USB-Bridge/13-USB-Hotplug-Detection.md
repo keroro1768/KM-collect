@@ -1,268 +1,276 @@
-# USB 熱插拔偵測 - 硬體電路與軟體控制
+# USB 熱插拔繼電器控制方案
 
 > 建立日期: 2026-03-27
-> 適用: STM32H563ZI USB Device
+> 目的: 使用繼電器硬體模擬 USB 熱插拔
 
 ---
 
-## 📋 概述
+## ⚠️ 挑戰
 
-USB 熱插拔偵測包含兩個層面：
-1. **硬體層**: VBUS 電壓偵測與保護電路
-2. **軟體層**: 中斷處理與狀態管理
+USB 熱插拔涉及 **4條線**:
+| 線 | 說明 | 速度要求 |
+|---|---|---|
+| VBUS | 5V 電源 | DC |
+| D+ | 資料+ | 480 Mbps |
+| D- | 資料- | 480 Mbps |
+| GND | 地線 | DC |
+
+**難點:** D+/D- 是高速訊號，機械繼電器無法快速切換
 
 ---
 
-## 🔌 硬體電路設計
+## 🔌 方案一: 只控制 VBUS (推薦)
 
-### 1. VBUS 偵測電路 (推薦)
+最簡單方案 - 只用繼電器控制電源
 
-**用途**: 偵測 USB 插入/拔出事件
-
-**電路圖:**
 ```
-USB_VBUS ──┬── R1=4.7kΩ ──┬── PA9 (VBUS_SENSE)
-           │              │
-           └── R2=10kΩ ───┴── GND
-```
-
-**分壓計算:**
-- VBUS = 5V (USB 標準)
-- PA9 電壓 = 5V × (10k / (4.7k + 10k)) = 3.4V
-- 安全邊界: 3.4V < 3.3V MCU IO max ✓
-
-**STM32 連接對照:**
-
-| 功能 | STM32H563ZI Pin | 備註 |
-|------|-----------------|------|
-| VBUS_SENSE | PA9 | USB VBUS 偵測 |
-| USB_DM | PA11 | D- |
-| USB_DP | PA12 | D+ |
-| USB_PWR | PB1 | 電源控制 (可選) |
-
-### 2. USB 電源保護電路
-
-**用途**: 防止回流電流與過載
-
-**方案 A: 簡單防護 (推薦)**
-```
-USB_VBUS ──┬── D1 ( Schottky ) ──┬── VDD_5V
-           │                     │
-           └── R100Ω ───────────┴── (MCU VBUS)
+┌─────────────────────────────────────────────┐
+│                  USB 主機                      │
+└─────────────────┬───────────────────────────┘
+                  │
+                  │ VBUS (5V)
+                  │
+            ┌─────▼─────┐
+            │   RELAY   │ (5V 線圈)
+            │  SPST-NO  │
+            └─────┬─────┘
+                  │ 
+                  ▼ (NC 常閉 → NO 常開)
+            ┌─────┬─────┐
+            │     │     │
+          VBUS   D+    D-
+            │     │     │
+            └─────┴─────┘
+                  │
+                  ▼
+            ┌─────────────────┐
+            │   USB 設備      │
+            │  (STM32H563ZI)  │
+            └─────────────────┘
 ```
 
-**方案 B: 獨立供電切換**
+### 繼電器選型
+
+| 型號 | 特性 | 用途 |
+|------|------|------|
+| **G6K-2F-Y** | 5V, 2A, DPDT | 訊號切換 |
+| **HF115F** | 5V, 10A, SPDT | 電源切換 |
+| **SMD 繼電器** | 體積小 | PCB 整合 |
+
+### 電路圖
+
 ```
-                        ┌── VDD_3V3 (MCU)
-                        │
-VBUS ── TPS2041 ───────┤
-(IN)    (0.5A)          │
-                        └── VDD_5V (USB Device)
+         VBUS (5V) from Host
+              │
+         ┌────┴────┐
+         │  Relay  │ (如 HF115F)
+         │  SPST   │
+         │         │
+         └────┬────┘
+              │
+              ▼ 輸出 to STM32 USB VBUS
+              │
+         ┌────┴────┐
+         │  4.7kΩ  │ ──┐
+         │  10kΩ   │   ├── 分壓給 PA9
+         └────┬────┘ ──┘
+              │
+             GND
 ```
 
-**TPS2041 特性:**
-| 參數 | 數值 |
-|------|------|
-| 輸出電流 | 0.5A |
-| 限流保護 | 0.9A |
-| Rds(on) | 80mΩ |
-| 熱保護 | ✅ |
+### 控制腳本
 
-### 3. 防護元件清單
+```python
+# usb_relay_control.py
+import serial
+import time
 
-| 元件 | 型號 | 數量 | 備註 |
+class USBHotplugRelay:
+    def __init__(self, com_port, relay_pin):
+        self.ser = serial.Serial(com_port, 9600)
+        self.relay_pin = relay_pin
+    
+    def connect(self):
+        """模擬 USB 插入"""
+        self.ser.write(b"RELAY ON\n")
+        print("USB Connected")
+    
+    def disconnect(self):
+        """模擬 USB 拔出"""
+        self.ser.write(b"RELAY OFF\n")
+        print("USB Disconnected")
+
+# 使用範例
+relay = USBHotplugRelay("COM3", 2)
+relay.connect()    # 繼電器吸合，VBUS 接通
+time.sleep(0.5)
+relay.disconnect() # 繼電器釋放，VBUS 切斷
+```
+
+---
+
+## 🔌 方案二: 完全隔離 (含 Data 切換)
+
+需要切換資料線時，使用 **類比開關 IC**
+
+### 元件選型
+
+| 元件 | 型號 | 說明 |
+|------|------|------|
+| **類比開關** | 74HC4066 或 TS5A23159 | 切換 D+/D- |
+| **電源繼電器** | G5LA-1 | 切換 VBUS |
+| **光耦合器** | PC817 | 控制訊號隔離 |
+
+### 電路圖
+
+```
+┌─────────────────────────────────────────────────────┐
+│                      主機                            │
+│   VBUS    D+    D-    GND                          │
+└─────┬─────┬─────┬─────┬────────────────────────────┘
+      │     │     │     │
+ ┌────┴┐ ┌──┴──┐ ┌──┴──┐ │
+ │Relay│ │HC4066│ │HC4066│ │ (受控於 MCU)
+ │ VBUS│ │ D+  │ │ D-  │ │
+ └────┬┘ └──┬──┘ └──┬──┘ │
+      │      │       │    │
+      └──────┴───────┴────┘
+                │
+               to STM32
+              USB pins
+```
+
+### 控制時序
+
+```c
+// 模擬插入
+void simulate_usb_insert(void) {
+    // 1. 先接通 VBUS
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);  // 繼電器吸合
+    
+    // 2. 等待 VBUS 穩定 (10ms)
+    HAL_Delay(10);
+    
+    // 3. 接通資料線
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);  // HC4066 Enable
+    
+    // 4. 等待資料線穩定 (1ms)
+    HAL_Delay(1);
+    
+    // 5. 初始化 USB
+    MX_USB_DEVICE_Init();
+}
+
+// 模擬拔出
+void simulate_usb_remove(void) {
+    // 1. 先斷開資料線
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);  // HC4066 Disable
+    
+    // 2. 等待資料線穩定 (1ms)
+    HAL_Delay(1);
+    
+    // 3. 斷開 VBUS
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);  // 繼電器釋放
+    
+    // 4. 清理 USB 狀態
+    USBD_DeInit(&hUsbDeviceFS);
+}
+```
+
+---
+
+## 🔌 方案三: USB 切換器 IC (最佳方案)
+
+使用專用 USB 切換 IC
+
+### 推薦 IC
+
+| 型號 | 廠商 | 頻寬 | 特性 |
 |------|------|------|------|
-| 分壓電阻 | 4.7kΩ + 10kΩ | 2 | 1% 精度的 |
-| 保護二極管 | BAT54S | 1 | 防反向 |
-| 電容 | 100nF | 1 | VBUS 濾波 |
-| USB 保護 IC | USBLC6 | 1 | USB 專用 ESD |
-| 保險絲 | 500mA | 1 | 自恢復 PPTC |
+| **USB2512** | Microchip | 480 Mbps | 2-Port Hub |
+| **USB2532** | Microchip | 480 Mbps | 4-Port Hub |
+| **PI5CUSB3120** | Diodes | 11.5 GHz | USB 3.1 切換 |
+| **NTTS2R06** | ON Semiconductor | 480 Mbps | 低阻抗 |
 
----
+### 電路圖 (使用 NTTS2R06)
 
-## 🔧 STM32 軟體配置
-
-### 1. VBUS 偵測中斷設定
-
-**CubeMX 配置:**
 ```
-Pin: PA9
-Mode: GPIO_Input 或 VBUS_SENSE
-Pull: Pull-Down
-```
+            ┌──────────────┐
+  USB_HOST ─┤ A1    D+    B1 ├─ to STM32 D+
+            │               │
+            │ A2    D-    B2 ├─ to STM32 D-
+            │               │
+  ENABLE ───┤ EN           │
+            └──────────────┘
 
-**中斷配置:**
-```
-EXTI Line: EXTI_Line9
-Trigger: Rising/Falling Edge
-```
-
-### 2. USB 熱插拔中斷程式碼
-
-```c
-// usb_hotplug.c
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    if (GPIO_Pin == GPIO_PIN_9) {
-        // 讀取 VBUS 狀態
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET) {
-            // USB 插入
-            USB_Device.connected = true;
-            printf("USB Connected\n");
-        } else {
-            // USB 拔出
-            USB_Device.connected = false;
-            printf("USB Disconnected\n");
-            
-            // 清理 USB 狀態
-            USBD_Stop();
-        }
-    }
-}
-```
-
-### 3. USB 初始化/去初始化
-
-```c
-// usb_hotplug.c
-
-void USB_HotPlug_Init(void) {
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    
-    // PA9 VBUS 偵測
-    GPIO_InitStruct.Pin = GPIO_PIN_9;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-    
-    // 初始狀態檢查
-    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET) {
-        USB_Device.connected = true;
-    }
-}
-
-void USB_Handle_Connection(void) {
-    if (USB_Device.connected && !USB_Device.initialised) {
-        // 初始化 USB
-        MX_USB_DEVICE_Init();
-        USB_Device.initialised = true;
-    }
-}
-
-void USB_Handle_Disconnection(void) {
-    if (!USB_Device.connected && USB_Device.initialised) {
-        // 去初始化 USB
-        USBD_DeInit(&hUsbDeviceFS);
-        USB_Device.initialised = false;
-    }
-}
-```
-
-### 4. 主迴圈整合
-
-```c
-// main.c
-
-int main(void) {
-    // ... init ...
-    
-    USB_HotPlug_Init();
-    
-    while (1) {
-        // 檢查 USB 連線狀態變化
-        if (USB_Device.connected != USB_Device.last_state) {
-            USB_Device.last_state = USB_Device.connected;
-            
-            if (USB_Device.connected) {
-                USB_Handle_Connection();
-            } else {
-                USB_Handle_Disconnection();
-            }
-        }
-        
-        // 其他任務...
-        HAL_Delay(100);
-    }
-}
+            ┌──────────────┐
+  VBUS ─────┤ Relay       ├─ to STM32 VBUS
+            │ (G5LA-1)    │
+  CONTROL ──┤ Coil        │
+            └──────────────┘
 ```
 
 ---
 
-## 🔒 安全機制
+## 📋 完整線路清單
 
-### 1. 防呆保護
+### 方案一 (只控制 VBUS) - 最簡單
 
-| 保護項目 | 實現方式 |
-|----------|----------|
-| 去抖動 | 軟體延遲 100ms 確認狀態 |
-| 多次偵測 | 連續 3 次狀態一致才生效 |
-| 順序檢查 | 先確認 VBUS，再初始化 USB |
+| 元件 | 型號/規格 | 數量 | 價格參考 |
+|------|-----------|------|----------|
+| 繼電器 | HF115F-5V | 1 | NT$30 |
+| 二極管 | 1N4148 | 1 | NT$1 |
+| 電阻 | 4.7kΩ + 10kΩ | 2 | NT$2 |
+| 電容 | 100nF | 1 | NT$1 |
+| **總計** | | | **~NT$35** |
 
-### 2. 狀態機
+### 方案二 (完全隔離)
 
+| 元件 | 型號/規格 | 數量 | 價格參考 |
+|------|-----------|------|----------|
+| 繼電器 | G5LA-1 5V | 1 | NT$15 |
+| 類比開關 | 74HC4066 | 1 | NT$10 |
+| 光耦合器 | PC817 | 1 | NT$5 |
+| 二極管 | 1N4148 | 1 | NT$1 |
+| 電阻 | 4.7kΩ + 10kΩ | 2 | NT$2 |
+| **總計** | | | **~NT$35** |
+
+---
+
+## ⚡ 安全注意事項
+
+1. **切勿在 USB 傳輸時切斷 VBUS** - 可能損壞裝置
+2. **先切資料線，再切 VBUS** - 正確順序
+3. **增加去抖動電容** - 100uF 電容在 VBUS
+4. **ESD 保護** - USBLC6-2SC6
+
+### 錯誤順序 (會損壞!)
 ```
-┌─────────┐   VBUS ON    ┌────────────┐
-│ DISCONNECTED │───────────→│ CONNECTING │
-└─────────┘               └────────────┘
-    ↑                           │
-    │                     USB OK │
-    │    VBUS OFF         ┌──────▼──────┐
-    └─────────────────────│ CONNECTED   │
-                           └─────────────┘
-```
+X 拔出時: 先切 VBUS → 再切資料線
+✓ 拔出時: 先切資料線 → 再切 VBUS
 
-### 3. 錯誤處理
-
-```c
-typedef enum {
-    USB_STATE_DETACHED = 0,
-    USB_STATE_ATTACHED,
-    USB_STATE_POWERED,
-    USB_STATE_DEFAULT,
-    USB_STATE_ADDRESSED,
-    USB_STATE_CONFIGURED,
-    USB_STATE_SUSPENDED
-} USB_StateTypeDef;
-
-void USB_Error_Handler(USB_StateTypeDef state) {
-    // 記錄錯誤
-    Log_Error(state);
-    
-    // 嘗試恢復
-    USB_DeInit();
-    HAL_Delay(100);
-    USB_Init();
-}
+X 插入時: 先接資料線 → 再接 VBUS  
+✓ 插入時: 先接 VBUS → 等待穩定 → 再接資料線
 ```
 
 ---
 
-## 📝 測試檢查清單
+## 🔧 實作建議
 
-### 硬體測試
-- [ ] VBUS 電壓正確 (5V ± 10%)
-- [ ] PA9 電壓正確 (3.3V when connected)
-- [ ] 電源保護電路運作正常
-- [ ] ESD 保護正常
+### 麵包板測試
+1. 先用 Arduino 控制繼電器測試
+2. 確認 VBUS 訊號正確
+3. 再進行資料線測試
 
-### 軟體測試
-- [ ] 插入時正確偵測
-- [ ] 拔出時正確偵測
-- [ ] 多次插拔穩定性
-- [ ] 中斷不會遺漏
-
-### 相容性測試
-- [ ] Windows
-- [ ] macOS
-- [ ] Linux
-- [ ] 不同 USB 埠 (USB 2.0 / 3.0)
+### PCB 設計
+1. 使用 USB 專用連接器 (Micro-B 或 Type-C)
+2. 保持 D+/D- 對稱走線 (90Ω 差分阻抗)
+3. VBUS 走線要粗 (1A 以上)
 
 ---
 
-## 📎 參考文件
+## 📎 參考資源
 
-- AN4879 - USB Hardware and PCB Guidelines
-- AN4879: https://www.st.com/resource/en/application_note/an4879
-- TPS2041 Datasheet: https://www.ti.com/product/TPS2041
-- STM32H563 Reference Manual
+- 74HC4066 Datasheet
+- AN4879 - USB Hardware Guidelines
+- USB 2.0 Specification
